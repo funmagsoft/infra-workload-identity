@@ -11,7 +11,9 @@ terraform {
 
 locals {
   managed_identity_name = "mi-${var.project_name}-${var.service_name}-${var.environment}"
+  service_account_name  = "sa-${var.service_name}"
   federated_cred_name   = "fic-${var.project_name}-${var.service_name}-${var.environment}"
+  fic_subject           = "system:serviceaccount:${var.namespace}:${local.service_account_name}"
 
   needs_azure_access = var.enable_key_vault_access
     || var.enable_storage_access
@@ -30,9 +32,6 @@ locals {
     },
     var.tags
   )
-
-  # GitHub OIDC subject: repo:org/repo:ref:refs/heads/branch
-  fic_subject = "repo:${var.repo}:ref:refs/heads/${var.branch}"
 }
 
 # User Assigned Managed Identity (only if access is needed)
@@ -55,7 +54,7 @@ resource "azurerm_federated_identity_credential" "service" {
   parent_id           = azurerm_user_assigned_identity.service[0].id
 
   audience = ["api://AzureADTokenExchange"]
-  issuer   = "https://token.actions.githubusercontent.com"
+  issuer   = var.aks_oidc_issuer
   subject  = local.fic_subject
 }
 
@@ -116,4 +115,21 @@ resource "azurerm_role_assignment" "additional" {
   principal_id         = azurerm_user_assigned_identity.service[0].principal_id
 }
 
+# Kubernetes ServiceAccount (always created; annotation only if MI exists)
+resource "kubernetes_service_account_v1" "service" {
+  metadata {
+    name      = local.service_account_name
+    namespace = var.namespace
 
+    annotations = local.needs_azure_access ? {
+      "azure.workload.identity/client-id" = azurerm_user_assigned_identity.service[0].client_id
+    } : {}
+
+    labels = {
+      "azure.workload.identity/use"  = local.needs_azure_access ? "true" : "false"
+      "app.kubernetes.io/name"       = var.service_name
+      "app.kubernetes.io/env"        = var.environment
+      "app.kubernetes.io/managed-by" = "terraform"
+    }
+  }
+}

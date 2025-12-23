@@ -34,6 +34,17 @@ variable "branch" {
   default     = "main"
 }
 
+variable "namespace" {
+  description = "Kubernetes namespace for the service account"
+  type        = string
+  default     = "ecare"
+}
+
+variable "aks_oidc_issuer" {
+  description = "AKS OIDC issuer URL (from AKS output)"
+  type        = string
+}
+
 variable "enable_key_vault_access" {
   description = "If true, assign Key Vault Secrets User role on key_vault_id"
   type        = bool

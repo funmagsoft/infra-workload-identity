@@ -61,6 +61,17 @@ locals {
   }
 }
 
+locals {
+  aks_kube_config = yamldecode(data.terraform_remote_state.platform.outputs.aks_kube_config)
+}
+
+provider "kubernetes" {
+  host                   = local.aks_kube_config["clusters"][0]["cluster"]["server"]
+  client_certificate     = base64decode(local.aks_kube_config["users"][0]["user"]["client-certificate-data"])
+  client_key             = base64decode(local.aks_kube_config["users"][0]["user"]["client-key-data"])
+  cluster_ca_certificate = base64decode(local.aks_kube_config["clusters"][0]["cluster"]["certificate-authority-data"])
+}
+
 module "workload_identity" {
   for_each = local.services_expanded
 
@@ -71,6 +82,9 @@ module "workload_identity" {
   environment         = var.environment
   resource_group_name = data.azurerm_resource_group.main.name
   location            = data.azurerm_resource_group.main.location
+
+  namespace       = data.terraform_remote_state.platform.outputs.aks_namespace_name
+  aks_oidc_issuer = data.terraform_remote_state.platform.outputs.aks_oidc_issuer_url
 
   repo   = each.value.repo
   branch = lookup(each.value, "branch", "main")
