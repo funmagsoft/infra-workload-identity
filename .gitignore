@@ -57,4 +57,3 @@ Thumbs.db
 
 # BUT KEEP .terraform.lock.hcl - this is important!
 # It should be committed to version control
-
